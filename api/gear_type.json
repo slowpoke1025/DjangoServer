@@ -1,0 +1,122 @@
+{
+    "b1": {
+        "type": "hair",
+        "gender": "男",
+        "name": "..."
+    },
+    "b2": {
+        "type": "hair",
+        "gender": "男",
+        "name": "..."
+    },
+    "b3": {
+        "type": "hair",
+        "gender": "男",
+        "name": "..."
+    },
+    "g1": {
+        "type": "hair",
+        "gender": "女",
+        "name": "..."
+    },
+    "g2": {
+        "type": "hair",
+        "gender": "女",
+        "name": "..."
+    },
+    "g3": {
+        "type": "hair",
+        "gender": "女",
+        "name": "..."
+    },
+    "c1": {
+        "type": "top",
+        "gender": "通",
+        "name": "..."
+    },
+    "c2": {
+        "type": "top",
+        "gender": "通",
+        "name": "..."
+    },
+    "c3": {
+        "type": "top",
+        "gender": "通",
+        "name": "..."
+    },
+    "c4": {
+        "type": "top",
+        "gender": "通",
+        "name": "..."
+    },
+    "c5": {
+        "type": "top",
+        "gender": "通",
+        "name": "..."
+    },
+    "c6": {
+        "type": "top",
+        "gender": "通",
+        "name": "..."
+    },
+    "pb1": {
+        "type": "bottom",
+        "gender": "男",
+        "name": "..."
+    },
+    "pb2": {
+        "type": "bottom",
+        "gender": "男",
+        "name": "..."
+    },
+    "pb3": {
+        "type": "bottom",
+        "gender": "男",
+        "name": "..."
+    },
+    "pg1": {
+        "type": "bottom",
+        "gender": "女",
+        "name": "..."
+    },
+    "pg2": {
+        "type": "bottom",
+        "gender": "女",
+        "name": "..."
+    },
+    "pg3": {
+        "type": "bottom",
+        "gender": "女",
+        "name": "..."
+    },
+    "s1": {
+        "type": "shoes",
+        "gender": "通",
+        "name": "..."
+    },
+    "s2": {
+        "type": "shoes",
+        "gender": "通",
+        "name": "..."
+    },
+    "s3": {
+        "type": "shoes",
+        "gender": "通",
+        "name": "..."
+    },
+    "s4": {
+        "type": "shoes",
+        "gender": "通",
+        "name": "..."
+    },
+    "s5": {
+        "type": "shoes",
+        "gender": "通",
+        "name": "..."
+    },
+    "s6": {
+        "type": "shoes",
+        "gender": "通",
+        "name": "..."
+    }
+}

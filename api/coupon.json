@@ -1,0 +1,56 @@
+{
+    "a": {
+        "type": "a",
+        "desc": "...",
+        "level": 0,
+        "name": "COUPON 1"
+    },
+    "b": {
+        "type": "b",
+        "desc": "...",
+        "level": 0,
+        "name": "COUPON 2"
+    },
+    "c": {
+        "type": "c",
+        "desc": "...",
+        "level": 0,
+        "name": "COUPON 3"
+    },
+    "d": {
+        "type": "d",
+        "desc": "...",
+        "level": 1,
+        "name": "COUPON 4"
+    },
+    "e": {
+        "type": "e",
+        "desc": "...",
+        "level": 1,
+        "name": "COUPON 5"
+    },
+    "f": {
+        "type": "f",
+        "desc": "...",
+        "level": 1,
+        "name": "COUPON 6"
+    },
+    "g": {
+        "type": "g",
+        "desc": "...",
+        "level": 2,
+        "name": "COUPON 7"
+    },
+    "h": {
+        "type": "h",
+        "desc": "...",
+        "level": 2,
+        "name": "COUPON 8"
+    },
+    "i": {
+        "type": "i",
+        "desc": "...",
+        "level": 2,
+        "name": "COUPON 9"
+    }
+}
