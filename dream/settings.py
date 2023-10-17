@@ -42,6 +42,7 @@ ALLOWED_HOSTS = ["*"]
 INSTALLED_APPS = [
     "accounts",
     "api",
+    "client",
     "rest_framework",
     # "rest_framework.authtoken",
     "rest_framework_simplejwt",
@@ -78,7 +79,7 @@ ROOT_URLCONF = "dream.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [os.path.join(BASE_DIR, 'client/templates')],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -150,7 +151,10 @@ USE_TZ = False  # Asia/Taipei-> False, UTC -> True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = "/static/"
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'client/static')
+]
 MEDIA_ROOT = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 

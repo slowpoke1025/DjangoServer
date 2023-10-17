@@ -1,5 +1,10 @@
 from django.urls import path, include
 from . import views
+from rest_framework_simplejwt.views import (
+    # TokenObtainPairView,
+    TokenRefreshView,
+    # TokenVerifyView,
+)
 
 urlpatterns = [
     path("bag/", views.BagView.as_view()),
@@ -9,6 +14,9 @@ urlpatterns = [
     path("exercises/", views.ExerciseView.as_view({"get": "list", "post": "create"})),
 ]
 
+urlpatterns += [
+    path("token/refresh/", TokenRefreshView.as_view()),
+]
 urlpatterns += [
     path("history/<int:year>/<int:month>/", views.ExerciseMonthView.as_view()),
     path("history/<int:year>/<int:month>/<int:day>/", views.ExerciseDayView.as_view()),
