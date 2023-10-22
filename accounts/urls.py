@@ -1,11 +1,11 @@
 from django.urls import path, include
 from . import views
 
-# from rest_framework_simplejwt.views import (
-#     TokenObtainPairView,
-#     TokenRefreshView,
-#     TokenVerifyView,
-# )
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 
 
 # authentication
@@ -15,11 +15,12 @@ urlpatterns = [
     path("signup/", views.UserView.as_view({"post": "create"})),
     path("signin/", views.SignInView.as_view()),
     path("nonce/", views.fetchNonce.as_view()),
+    path("jwt/", views.jwtForever.as_view()),
 ]
 
 # development only !
 urlpatterns += [
-    path("", views.UserView.as_view({"get": "list"})),
+    path("all/", views.UserView.as_view({"get": "list"})),
     path("<int:pk>/detail/", views.UserView.as_view({"get": "retrieve"})),
 ]
 
@@ -30,6 +31,6 @@ urlpatterns += [
 
 urlpatterns += [
     # path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    #  path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+     path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     # path("api/token/refresh/", TokenRefreshView.as_view()),
 ]

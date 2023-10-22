@@ -7,7 +7,7 @@ User = get_user_model()
 # request.auth.payload
 def create_jwt(user, payload):
     refresh = RefreshToken.for_user(user)
-    refresh.payload.update(payload)
+    # refresh.payload.update(payload)
     tokens = {"access": str(refresh.access_token), "refresh": str(refresh)}
 
     return tokens

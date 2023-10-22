@@ -2,6 +2,8 @@
 from datetime import datetime, timedelta
 import os
 import random
+from collections import defaultdict
+
 from accounts.models import User
 from api.utils.ethereum import mint_test, read_test, w3
 from .models import Coupon, Thing, Gear, Exercise, Wear, WeekTask
@@ -143,7 +145,7 @@ class GearView(ModelViewSet):
 class ExerciseView(ModelViewSet):
     queryset = Exercise.objects.all()
     serializer_class = ExerciseSerializers
-    permission_classes = [AllowAny] #記得更新
+    permission_classes = [IsAuthenticated] #記得更新
 
     def gacha(self, user):
          # 設定各等級小物的機率值
@@ -383,7 +385,29 @@ class ExerciseMonthView(APIView):
 
         return Response(list(exercises))
 
+class ExerciseNFTView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request, id):  # 抓取特定user以及當前月份完成運動的紀錄
+        exercises = Exercise.objects.filter(
+            user=request.user,
+            gear__token_id=id,
+        ).values('timestamp__date', 'type').annotate(
+            date=F('timestamp__date'),
+            total_count=Sum('count'),
+            total_valid_count=Sum(F('count') * F('accuracy')),
+            total_exp=Sum('exp'),
+            num_of_record=Count('id')
+        ).order_by("timestamp__date")
+        dates = exercises.values_list("date", flat=True)
+        exercises = exercises.values("type", "total_count","total_valid_count", "total_exp", "num_of_record")
+   
+        res = defaultdict(list)
+        for date, exercise in zip(dates, exercises):
+            res[str(date)].append(exercise)
+        res = [{'date':k, 'data':v} for k,v in res.items()]
+        return Response(res)
+    
 class ExerciseWeekView(APIView):
     permission_classes = [IsAuthenticated]
 

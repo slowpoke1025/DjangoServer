@@ -57,6 +57,14 @@ def siweVerify(request):
     return user, address
 
 
+class jwtForever(APIView):
+    def get(self, request):
+        user = request.user
+        serializer = ProfileSerializers(user)
+        data = serializer.data
+        tokens = create_jwt(user, data)
+        return Response(tokens)
+
 class SignInView(APIView):
     def post(self, request):
         try:

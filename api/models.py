@@ -66,6 +66,8 @@ class Gear(models.Model):
     coupon = models.TextField(blank=True, null=True)
     custom = models.TextField(blank=True, null=True)
     coupon_date = models.DateField(blank=True, null=True)
+    # trial = models.BooleanField(default=False)
+    
 
     @property
     def config(self):

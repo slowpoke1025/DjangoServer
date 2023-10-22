@@ -19,7 +19,7 @@ class CustomUserAdmin(UserAdmin):
     ]
 
     list_display = (
-        "username",
+        "username","id",
         *PROFILE_FIELDS,
         *PERMISSION_FIELDS,
     )

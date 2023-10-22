@@ -20,6 +20,7 @@ urlpatterns += [
 urlpatterns += [
     path("history/<int:year>/<int:month>/", views.ExerciseMonthView.as_view()),
     path("history/<int:year>/<int:month>/<int:day>/", views.ExerciseDayView.as_view()),
+    path("history/<int:id>/", views.ExerciseNFTView.as_view()),
 ]
 
 urlpatterns += [
