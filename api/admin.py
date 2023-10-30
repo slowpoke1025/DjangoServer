@@ -30,6 +30,9 @@ class GearAdmin(admin.ModelAdmin):
         "work_max",
         "exp",
         "coupon",
+        "finish_date",
+        "goal_exp",
+        "isMax"
     ]
 
 

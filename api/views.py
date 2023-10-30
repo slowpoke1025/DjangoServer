@@ -1,17 +1,20 @@
 # from django.shortcuts import render
 from datetime import datetime, timedelta
 import os
+import numpy as np
 import random
 from collections import defaultdict
+from firebase_admin.messaging import Message, Notification
 
 from accounts.models import User
 from api.utils.ethereum import mint_test, read_test, w3
 from .models import Coupon, Thing, Gear, Exercise, Wear, WeekTask
 from accounts.permissions import IsOwnerOrAdmin, IsUserOrAdmin
 from django.db import transaction
-from django.db.models import Sum, Value, F, IntegerField,ExpressionWrapper, Count
+from django.db.models import Sum, Value, F, IntegerField,ExpressionWrapper, Count, Avg, Min
+from fcm_django.models import FCMDevice
 from django.http import Http404
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, TruncDate
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -36,6 +39,7 @@ class BagView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+
         user = request.user
         things = user.thing_set.all().exclude(amount=0).order_by("type")
         gears = user.gear_set.all().order_by("type", "level")
@@ -141,7 +145,53 @@ class GearView(ModelViewSet):
     # def perform_create(self, serializer):
     #     serializer.save(user=self.request.user)
 
+class RecommendationView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):  # 抓取特定user以及當前月份完成運動的紀錄
+        user = request.user
 
+        gear = user.gear_set.filter(finish_date__isnull=False).order_by("finish_date").last()
+        e = user.exercise_set.filter(max=True).order_by("timestamp").last()
+        
+        if not e:
+            return Response({"message":"trial..."})
+        gear=e.gear
+        
+        exercises = user.exercise_set.filter(gear=gear)
+        time_range = exercises.values_list('timestamp__date', flat=True).order_by('timestamp__date').distinct()
+        diff = [(time_range[x]-time_range[x-1]).days for x in range(1, len(time_range))]
+  
+        arr = self.remove_outliers(diff)
+        avg_diff = arr.mean()
+        
+        e = exercises.values('timestamp__date').annotate(
+            date=F('timestamp__date'),
+            total_count=Sum('count'),
+            total_valid_count=Sum(F('count') * F('accuracy')),
+            mean_count=Avg('count'),
+            mean_valid_count=Avg(F('count') * F('accuracy')),
+            num_of_record=Count('id')
+        ).order_by("timestamp__date")
+        avg_daily_valid_count = e.aggregate(mean_vaild_count=Avg("total_valid_count"))["mean_vaild_count"]
+        
+        orientation = "workout" if avg_diff >= 2.5 else "health"
+        if avg_daily_valid_count < 30:
+            level = 0
+        elif avg_daily_valid_count < 60:
+            level = 1
+        else:
+            level = 2
+        return Response({"orientation":orientation, "level":level, "avg_daily_valid_count": avg_daily_valid_count, "avg_diff":avg_diff})
+    
+    def remove_outliers(self, arr, threshold=1.5):
+        mean = np.mean(arr)
+        std = np.std(arr)
+        z_scores = (arr - mean) / std
+        outliers = np.where(np.abs(z_scores) > threshold)[0]
+        filtered_arr = np.delete(arr, outliers)
+        return filtered_arr
+    
 class ExerciseView(ModelViewSet):
     queryset = Exercise.objects.all()
     serializer_class = ExerciseSerializers
@@ -175,21 +225,27 @@ class ExerciseView(ModelViewSet):
             "type": new_thing.type,
             "amount": new_thing.amount,
         }
+    def workout_task(self, task):
+        today = datetime.now().date()
+        exercises = task.user.exercise_set.order_by("-timestamp__date")
+        last_complete = exercises.first().timestamp.date() if exercises.exists() else None  
         
-    def handle_task(self, exercise, user):
-        if exercise.exists():
-            return None
+        if task.count == 0 or not last_complete or (today - last_complete).days > 3 or task.count == 7 and today > last_complete:
+            task.week_start = today
+            task.count = 1
+            return "DAILY_COMPLETE", None
         
-        task = user.task
+        task.count += 1
+        if task.count < 7:
+            return "DAILY_COMPLETE", None
+            
+        return "WEEKLY_COMPLETE", self.gacha(task.user)
+    
+    def healthy_task(self, task):
         if task.delta > timedelta(days=task.count) or task.delta >= timedelta(days=7):
             task.count = 0
             
         today = datetime.now().date()
-        # task = user.task
-        # delta = today - task.week_start
-        
-        if task.delta == timedelta(days=task.count - 1):  # 已完成
-            return None
 
         gacha = None    
         if task.delta == timedelta(days=task.count) and task.count != 0:  # 連續
@@ -197,7 +253,7 @@ class ExerciseView(ModelViewSet):
             if task.count >= 7:
                 # message = "完成每周任務"
                 status = "WEEKLY_COMPLETE"
-                gacha = self.gacha(user)
+                gacha = self.gacha(task.user)
             else:
                 # message = "完成本日任務"
                 status = "DAILY_COMPLETE"
@@ -206,7 +262,19 @@ class ExerciseView(ModelViewSet):
             task.count = 1
             # message = "完成首日任務"
             status = "DAILY_COMPLETE"
-
+        return status, gacha
+    
+    def handle_task(self, exercise, user):
+        if exercise.exists():
+            return None
+        
+        task = user.task
+        orientation = user.wear.target.orientation
+        if orientation != "workout":
+            status, gacha = self.healthy_task(task)
+        else:
+            status, gacha = self.workout_task(task)
+            
         task.save()  # 保存更新後的 WeekTask
         res = {"status": status, "count": task.count}
    
@@ -244,12 +312,17 @@ class ExerciseView(ModelViewSet):
 
         # if gear.user != request.user:
         #     raise PermissionDenied("You are not allowed to modify this gear.")
-        user = request.user if request.user.is_authenticated else User.objects.get(username="root") #測試完移除
+        # user = request.user if request.user.is_authenticated else User.objects.get(username="root") #測試完移除
+        user = request.user
+        
         gear = user.wear.target
         
         if gear is None:
             raise PermissionDenied("You haven't set the target gear !")
         
+        if gear.isMax:
+            raise PermissionDenied("This gear has already reached Max Level")
+                    
         if valid_count < gear.work_min:
             return Response({"status":"WORKMIN_FAILED", "message":"workmin isn't reached !", "workmin": gear.work_min, "valid_count":valid_count})
 
@@ -282,9 +355,14 @@ class ExerciseView(ModelViewSet):
         task = self.handle_task(daily_exercise, gear.user)
         
         exp = round(_valid_count * gear.lucky + bonus, 2)
+        delta = gear.goal_exp - gear.exp
         gear.exp = min(round(gear.exp + exp, 2), gear.goal_exp)
-        exp = exp if gear.exp < gear.goal_exp else round(gear.goal_exp - exp, 2)
         
+        if gear.isMax:
+            exp = delta
+            gear.finish_date = today
+            data["max"] = True
+            
         gear.save()
         serializer.save(user=user, gear=gear, exp=exp)
 
@@ -295,7 +373,7 @@ class ExerciseView(ModelViewSet):
                 "valid_count":valid_count,
                 "daily_valid_count": current_count + valid_count,
                 "daily_max_flag": daily_max_flag,
-                "gear_max_flag": gear.exp >= gear.goal_exp, 
+                "gear_max_flag": gear.isMax, 
                 "task": task,
                 "thing": thing,
             },
@@ -388,31 +466,48 @@ class ExerciseMonthView(APIView):
 class ExerciseNFTView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, id):  # 抓取特定user以及當前月份完成運動的紀錄
-        exercises = Exercise.objects.filter(
+    def get(self, request, token_id):  # 抓取特定user以及當前月份完成運動的紀錄
+        e = Exercise.objects.filter(
             user=request.user,
-            gear__token_id=id,
+            gear__token_id=token_id,
+        )
+        if not e:
+            raise PermissionDenied("You don't have this gear")
+        time_range = e.values_list('timestamp__date', flat=True).distinct()
+        start_date = time_range[0] if len(time_range) <= 30 else time_range[len(time_range)-30]
+        
+        exercises = e.filter(
+            timestamp__date__gte=start_date
         ).values('timestamp__date', 'type').annotate(
             date=F('timestamp__date'),
             total_count=Sum('count'),
             total_valid_count=Sum(F('count') * F('accuracy')),
             total_exp=Sum('exp'),
+            mean_count=Avg('count'),
+            mean_valid_count=Avg(F('count') * F('accuracy')),
+            mean_exp=Avg('exp'),
+            mean_accuracy=Sum(F('count') * F('accuracy')) / Sum('count'),
             num_of_record=Count('id')
         ).order_by("timestamp__date")
-        dates = exercises.values_list("date", flat=True)
-        exercises = exercises.values("type", "total_count","total_valid_count", "total_exp", "num_of_record")
-   
+        types = exercises.values_list("type", flat=True)
+        exercises = exercises.values("total_count","total_valid_count", "total_exp", "mean_count","mean_valid_count", "mean_exp", "mean_accuracy","num_of_record","date")
         res = defaultdict(list)
-        for date, exercise in zip(dates, exercises):
-            res[str(date)].append(exercise)
-        res = [{'date':k, 'data':v} for k,v in res.items()]
+        for _type, exercise in zip(types, exercises):
+            res[_type].append(exercise)
         return Response(res)
     
 class ExerciseWeekView(APIView):
     permission_classes = [IsAuthenticated]
-
+    
     def get(self, request):  # 抓取特定user以及當前月份完成運動的紀錄
-        task = request.user.task
+        user = request.user
+        task = user.task
+        orientation = user.wear.target.orientation
+        res = self.workout(user, task) if orientation == "workout" else self.healthy(task)
+        
+        return Response(res)
+    
+    def healthy(self, task):
         today = datetime.now().date()
 
         if task.delta > timedelta(days=task.count) or task.delta >= timedelta(days=7):
@@ -425,7 +520,34 @@ class ExerciseWeekView(APIView):
             for i in range(7)
         ]
 
-        return Response({"dates": days, "count": task.count})
+        return {"dates": days, "count": task.count}   
+         
+    def workout(self, user, task):
+        today = datetime.now().date()
+        exercises = user.exercise_set.order_by("-timestamp__date")
+        last_complete = exercises.first().timestamp.date() if exercises.exists() else None
+        
+        
+
+        if task.count == 0 or not last_complete or (today - last_complete).days > 3 or task.count == 7 and today > last_complete:
+            task.week_start = today
+            task.count = 0
+            task.save()
+            days = [
+              {"date": today + timedelta(3*i), "done": False} for i in range(7)
+            ]
+            return {"dates": days, "count": 0}   
+
+        days = exercises.values_list("timestamp__date", flat=True).distinct()[:task.count:-1]
+        d = 7 - task.count
+        while d > 0:
+            days.append(days[-1] + timedelta(days=3))
+            d -= 1
+        days = [
+            {"date": day, "done": i < task.count}
+            for i, day in enumerate(days)
+        ]
+        return {"dates": days, "count": task.count}   
 
 
 class GachaAPIView(APIView):
@@ -510,6 +632,9 @@ class WearView(ModelViewSet):
         wear = request.user.wear
         if wear.target == gear:
             raise PermissionDenied("This gear is already targeted")
+        if gear.isMax:
+            raise PermissionDenied("This gear has already reached Max Level")
+            
         wear.target = gear
         wear.save()
         return Response(
@@ -609,6 +734,39 @@ class readView(APIView):
             print(err)
             return Response({"error": str(err)}, status=400)
 
+
+class FCMView(APIView):
+    authentication_classes = []
+
+    def get(self, request):
+        try:
+            return render(request, 'index.html')
+        except Exception as err:
+            return Response({"error": str(err)}, status=400)
+
+    def post(self, request):
+        try:
+            user = request.user
+            return Response({"USER:": user}, status=400)
+        except Exception as err:
+            return Response({"error": str(err)}, status=400)
+
+
+class MSGView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            devices = FCMDevice.objects.all()
+            devices.send_message(
+                Message(
+                    notification=Notification(
+                        title="From DREAM", body="It's time to workout!")
+                ),
+            )
+            return Response("message sent")
+        except Exception as err:
+            return Response({"error": str(err)}, status=400)
 
 # class mintView(APIView):
 #     permission_classes = [IsAuthenticated]

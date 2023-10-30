@@ -1,12 +1,12 @@
 from accounts.tokens import create_jwt
-from api.models import Wear, WeekTask
+from api.models import Wear, WeekTask, Gear
 from .models import User
 from .permissions import IsUserOrAdmin
 from .serializers import ProfileSerializers, UserSerializers
-
+from api.serializers import MintSerializers
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.hashers import make_password
-
+from django.db.models import Min
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -117,20 +117,28 @@ class UserView(ModelViewSet):
             permission_classes = [IsUserOrAdmin]
         return [permission() for permission in permission_classes]
 
+    def trial_gear(self, user):
+        min_id = Gear.objects.aggregate(Min("token_id"))['token_id__min']
+        _type = Gear.TRIAL_TYPE[0] if user.gender == "Male" else Gear.TRIAL_TYPE[1]
+        return Gear.objects.create(user=user, token_id=min_id-1, level=3, lucky=1, type=_type)
+    
     def create(self, request, *args, **kwargs):
         try:
             _, address = siweVerify(request)
         except Exception as err:
             print("error:", type(err).__name__)
             return Response({"error": type(err).__name__}, status=401)
-
+        
         serializer = self.get_serializer(data=request.data.get("user"))
         serializer.is_valid(raise_exception=True)
         user = serializer.save(address=address)
         res = ProfileSerializers(user)
         WeekTask.objects.create(user=user)
         Wear.objects.create(user=user)
-
+        gear = self.trial_gear(user)
+        user.wear.target = gear
+        user.wear.hair = gear
+        user.wear.save()
         data = res.data
         tokens = create_jwt(user, data)
 

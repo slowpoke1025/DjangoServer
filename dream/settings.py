@@ -13,6 +13,9 @@ import os
 # .env
 from datetime import timedelta
 from dotenv import load_dotenv
+from firebase_admin import credentials
+import firebase_admin
+
 
 load_dotenv("/home/dream/Desktop/dreamDB-master/.env") 
 
@@ -53,6 +56,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'fcm_django',
+    "django_cron"
     
 ]
 
@@ -212,3 +217,24 @@ CSRF_COOKIE_SECURE = False
 
 # # Set the session age (e.g., 1 day)
 # SESSION_COOKIE_AGE = 86400  # 1 day in seconds
+
+FCM_DJANGO_SETTINGS = {
+    # default: _('FCM Django')
+    "APP_VERBOSE_NAME": "FCM Django",
+    # true if you want to have only one active device per registered user at a time
+    # default: False
+    "ONE_DEVICE_PER_USER": False,
+    # devices to which notifications cannot be sent,
+    # are deleted upon receiving error response from FCM
+    # default: False
+    "DELETE_INACTIVE_DEVICES": False,
+}
+print(BASE_DIR)
+cred = firebase_admin.credentials.Certificate(
+    os.path.join(BASE_DIR, './credentials.json'))
+firebase_admin.initialize_app(cred)
+
+CRON_CLASSES = [
+    "api.cron.SendFCMNotificationJob",
+    # ...
+]

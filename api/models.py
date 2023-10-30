@@ -20,11 +20,14 @@ class Gear(models.Model):
     ) as file:
         TYPES_INFO = json.load(file)
 
+    TRIAL_TYPE = ["b1", "g1"]
     ORIENTATION = {
         k: "healthy" if v["type"] in ["hair", "top"] else "workout"
         for k, v in TYPES_INFO.items()
     }
-
+    for t in TRIAL_TYPE:
+        ORIENTATION[t] = "trial"
+    
     CONFIG = {
         "healthy": {
             "WORK_MAX": [40, 50, 60],
@@ -34,6 +37,11 @@ class Gear(models.Model):
         "workout": {
             "WORK_MAX": [60, 70, 80],
             "WORK_MIN": [20, 30, 40],
+            "GOAL_DAYS": 14 / 2,
+        },
+        "trial": {
+            "WORK_MAX": [80, 80, 80, 80],
+            "WORK_MIN": [10, 10, 10, 10],
             "GOAL_DAYS": 14 / 2,
         },
     }
@@ -55,9 +63,10 @@ class Gear(models.Model):
         A = (0, "basic")
         B = (1, "intermediate")
         C = (2, "advanced")
+        D = (3, "trial")
 
     # primary_key = True in production
-    token_id = models.PositiveIntegerField()
+    token_id = models.IntegerField()
     user = models.ForeignKey(User, on_delete=models.DO_NOTHING, to_field="address")
     level = models.PositiveIntegerField(choices=Level.choices)
     type = models.CharField(max_length=10, choices=Type.choices)
@@ -66,7 +75,8 @@ class Gear(models.Model):
     coupon = models.TextField(blank=True, null=True)
     custom = models.TextField(blank=True, null=True)
     coupon_date = models.DateField(blank=True, null=True)
-    # trial = models.BooleanField(default=False)
+    finish_date = models.DateField(blank=True, null=True)
+    trial = models.BooleanField(default=False)
     
 
     @property
@@ -91,7 +101,7 @@ class Gear(models.Model):
 
     @property
     def goal_exp(self):
-        return self.work_max * 2 * self.goal_days
+        return self.work_max * 2 * self.goal_days if not self.trial else self.work_max * self.goal_days
 
     @property
     def daily_exp(self):  # 待補
@@ -103,7 +113,7 @@ class Gear(models.Model):
 
     @property
     def is_exchangeable(self):
-        return True or not self.is_redeemed and self.exp >= self.goal_exp  # 上線更新
+        return not self.is_redeemed and self.isMax  # 上線更新
 
     @property
     def is_redeemed(self):
@@ -117,6 +127,9 @@ class Gear(models.Model):
     def pos(self):
         return self.TYPES_INFO[self.type].get("type")
 
+    @property
+    def isMax(self):
+        return self.exp >= self.goal_exp
     @property
     def isTargeted(self):
         return self.user.wear.target == self
@@ -192,6 +205,7 @@ class Exercise(models.Model):
     accuracy = models.FloatField(default=0.0)
     thing = models.CharField(max_length=15, choices=Thing.Type.choices, blank=True, null=True)
     exp = models.FloatField(default=0.0, blank=True, null=True)
+    max = models.BooleanField(default=False)
     
     class Meta:
         managed = True

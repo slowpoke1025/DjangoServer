@@ -68,6 +68,7 @@ class GearSerializers(serializers.ModelSerializer):
             "daily_exp",
             "custom",
             "coupon",
+            "trial"
         ]
         # exclude = ["user"]
         
